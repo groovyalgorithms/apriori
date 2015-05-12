@@ -18,11 +18,9 @@ class TransactionDBLoader {
      * @return A List of Set representing the loaded transaction database
      */
     static List<Set> loadFromCsv(File file, String separator, Class type = String.class) {
-        List db = []
-        file.eachLine {
-            db << (it.split(separator).collect{type.newInstance(it.trim())} as Set)
+        file.collect {
+            it.split(separator).collect{type.newInstance(it.trim())} as Set
         }
-        db
     }
 
     /**
