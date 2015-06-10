@@ -5,7 +5,7 @@ import org.altervista.groovyalgorithms.datamining.frequentpattern.model.Frequent
 /**
  * This class implements Apriori Algorithm to mine frequent patterns
  * from a Transaction Database.
-   */
+ */
 class Apriori {
 
     /**
@@ -16,23 +16,30 @@ class Apriori {
      * @param minimumSupport the minimum support that a frequent pattern must have to be mines
      * @return a List of FrequentPattern
      */
-    static List<FrequentPattern> mineFrequentPattern(List<Set> transactionDB, double minimumSupport) {
+    static mineFrequentPattern(transactionDB, minimumSupport) {
         //initialization
-        Double absoluteSupport = minimumSupport * transactionDB.size()
-        List<FrequentPattern> frequentPatterns = []
+        def absoluteSupport = minimumSupport * transactionDB.size()
+        def frequentPatterns = []
 
         //first step
-        def items = getItems(transactionDB).collect{[it] as Set}
-        def l1 = filterFrequentItems(transactionDB, items, absoluteSupport)
-        frequentPatterns.addAll(l1.collect{pattern, support -> new FrequentPattern(pattern,support)})
+        def items = get1Itemset(transactionDB)
+        def survivors = filterFrequentItems(transactionDB, items, absoluteSupport)
+        saveFrequentPatterns(frequentPatterns, survivors)
 
-        while(!l1.isEmpty()) {
-            def c1 = generateCandidates(l1,absoluteSupport)
-            l1 = filterFrequentItems(transactionDB,c1,absoluteSupport)
-            frequentPatterns.addAll(l1.collect{pattern, support -> new FrequentPattern(pattern,support)})
+        //repeat until there're no more survivors
+        while (!survivors.isEmpty()) {
+            def candidates = generateCandidates(survivors, absoluteSupport)
+            survivors = filterFrequentItems(transactionDB, candidates, absoluteSupport)
+            saveFrequentPatterns(frequentPatterns, survivors)
         }
 
         frequentPatterns
+    }
+
+    static saveFrequentPatterns(frequentPatterns, survivors) {
+        frequentPatterns.addAll(survivors.collect {
+            pattern, support -> new FrequentPattern(pattern, support)
+        })
     }
 
     /**
@@ -44,16 +51,13 @@ class Apriori {
      * @param minimumSupport the absolute minimum support to use to filter out candidates
      * @return
      */
-    protected static Map filterFrequentItems(List<Set> transactionDB, List<Set> candidates, double minimumSupport) {
-        def supportCount = [:]
-        candidates.each { candidate ->
-            transactionDB.each { transaction ->
-                if (transaction.containsAll(candidate)) {
-                    supportCount[candidate] = (supportCount[candidate] ?: 0) + 1
-                }
+    static filterFrequentItems(transactionDB, candidates, minimumSupport) {
+        candidates.collectEntries { candidate ->
+            def support = transactionDB.count { transaction ->
+                transaction.containsAll(candidate)
             }
-        }
-        supportCount.findAll {candidate, support -> support >= minimumSupport}
+            [(candidate) : support]
+        }.findAll { candidate, support -> support >= minimumSupport }
     }
 
     /**
@@ -64,27 +68,23 @@ class Apriori {
      * @param frequentItems the support counts for frequent pattern of length N
      * @return The list of candidates of length N+1
      */
-    protected static List<Set> generateCandidates(Map<Set, Integer> frequentPatterns, double minimumSupport) {
+    static generateCandidates(frequentPatterns, minimumSupport) {
         Set<Set> candidates = []
         // get single items to combine with actual pattern
-        def items = getItems(frequentPatterns.keySet() as List)
+        def items = get1Itemset(frequentPatterns.keySet() as List)
         frequentPatterns.each { frequentPattern, support ->
-            //find items that can be added to the current frequent item
-            items.findAll{!frequentPattern.contains(it)}.each { itemToAdd ->
+            def itemsToAdd = items.findAll { !frequentPattern.contains(it) }
+            itemsToAdd.each { itemToAdd ->
                 Set newPattern = frequentPattern + itemToAdd
-
-                //check all subsets: for each item in the original pattern
-                //remove it and check if the remaining pattern is frequent
                 def notFrequentSubset = frequentPattern.find { itemToRemove ->
-                    frequentPatterns[newPattern-itemToRemove] < minimumSupport
+                    frequentPatterns[newPattern - itemToRemove] < minimumSupport
                 }
-
                 if (!notFrequentSubset) {
                     candidates << newPattern
                 }
             }
         }
-        candidates as List
+        candidates
     }
 
     /**
@@ -93,8 +93,8 @@ class Apriori {
      * @param transactions the transaction database
      * @return a Set containing the items that appears in the transaction database
      */
-    protected static Set getItems(List<Set> transactions) {
-        transactions.flatten() as Set
+    static get1Itemset(transactions) {
+        transactions.flatten().collect { [it] as Set } as Set
     }
 
 }
